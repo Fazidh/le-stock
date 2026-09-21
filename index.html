@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F2F3F7">
+<title>Le Stock</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --paper:#F2F3F7; --card:#FFFFFF; --ink:#1C2233; --muted:#636B80; --line:#DCDFE8;
+  --action:#2743C9; --action-ink:#FFFFFF; --danger:#C62839;
+  --display:"Bricolage Grotesque", "Arial Narrow", system-ui, sans-serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root{--paper:#161A24;--card:#1F2431;--ink:#EDEFF5;--muted:#9AA1B4;--line:#2E3444;--action:#7E95FF;--action-ink:#10152A;--danger:#FF6B78}
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+img{max-width:100%}
+:focus-visible{outline:3px solid var(--action);outline-offset:2px}
+
+.brand{font-family:var(--display);font-weight:800;font-size:1.35rem;letter-spacing:-.02em}
+.muted{color:var(--muted)}
+.err{color:var(--danger);font-size:.9rem;min-height:1.3em;margin:.25rem 0}
+
+/* Boutons */
+.btn{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:.7rem 1.1rem;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--action);color:var(--action-ink);border-color:var(--action)}
+.btn.danger{color:var(--danger);border-color:transparent;background:transparent;padding-left:0}
+.btn:disabled{opacity:.6;cursor:wait}
+.link{background:none;border:0;color:var(--muted);cursor:pointer;padding:.25rem;text-decoration:underline;text-underline-offset:3px}
+
+/* Champs */
+label{display:grid;gap:.3rem;font-weight:600;font-size:.92rem}
+input,select,textarea{width:100%;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:.7rem .8rem;font-weight:400;font-size:16px}
+textarea{resize:vertical}
+
+/* Connexion */
+.auth{min-height:100vh;display:grid;place-items:center;padding:1.5rem}
+.auth-box{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:2rem 1.6rem}
+.auth-box .brand{font-size:2.4rem;margin:0}
+.auth-box form{display:grid;gap:1rem;margin-top:1.4rem}
+
+/* En-tête */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);border-bottom:1px solid var(--line)}
+.top-in{max-width:1180px;margin:0 auto;padding:.75rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.who{display:flex;align-items:center;gap:.6rem;font-weight:600}
+.add-desk{display:none}
+@media (min-width:760px){.add-desk{display:inline-block}.fab{display:none!important}}
+
+.wrap{max-width:1180px;margin:0 auto;padding:1rem 1rem 7rem}
+
+/* Bandeau valeur : l'effet "carte holo" */
+.foil{position:relative;overflow:hidden;border-radius:20px;padding:1.3rem 1.4rem 1.2rem;color:#1C2233;
+  background:linear-gradient(115deg,#FFE3F1 0%,#DDEBFF 26%,#DDFBEA 50%,#FFF3CF 74%,#EDE0FF 100%);
+  background-size:220% 100%;animation:sheen 2.4s ease-out 1 both}
+.foil::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(135deg,rgba(255,255,255,.0) 0 14px,rgba(255,255,255,.35) 14px 15px)}
+@keyframes sheen{from{background-position:100% 0}to{background-position:0 0}}
+@media (prefers-reduced-motion:reduce){.foil{animation:none}}
+.foil-k{margin:0;font-weight:600}
+.foil-v{margin:.1rem 0 .15rem;font-family:var(--display);font-weight:800;font-size:clamp(2.4rem,9vw,4.2rem);line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.foil-s{margin:0;opacity:.75}
+
+/* Filtres */
+.tools{display:flex;gap:.6rem;margin:1rem 0 .6rem}
+.tools input{flex:1}
+.tools select{width:auto;max-width:44%}
+.chips{display:flex;gap:.45rem;overflow-x:auto;padding:.25rem 0 .45rem;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:.4rem .85rem;font-weight:600;font-size:.9rem;cursor:pointer;display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap}
+.chip small{font-weight:500;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.chip[aria-pressed="true"] small{color:inherit;opacity:.75}
+.dot{width:.6rem;height:.6rem;border-radius:50%;flex:none}
+.people .chip{border-style:dashed}
+.people .chip[aria-pressed="true"]{border-style:solid}
+
+/* Grille produits */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.8rem;margin-top:.8rem}
+@media (min-width:760px){.grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1rem}}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+.pic{aspect-ratio:1;background:var(--paper);display:grid;place-items:center;padding:.6rem}
+.pic img{width:100%;height:100%;object-fit:contain}
+.pic span{color:var(--muted);font-size:.85rem}
+.body{padding:.7rem .8rem .8rem;display:flex;flex-direction:column;gap:.3rem;flex:1}
+.tag{align-self:flex-start;display:inline-flex;align-items:center;gap:.35rem;font-size:.78rem;font-weight:600;color:var(--muted)}
+.tile h3{margin:0;font-size:.95rem;line-height:1.3;font-weight:600;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.by{margin:0;font-size:.82rem;color:var(--muted)}
+.nums{margin-top:auto;padding-top:.4rem;display:flex;justify-content:space-between;align-items:baseline;gap:.4rem;font-variant-numeric:tabular-nums}
+.nums span{font-size:.82rem;color:var(--muted)}
+.nums strong{font-family:var(--display);font-size:1.1rem}
+.own{display:flex;align-items:center;gap:.35rem;margin-top:.45rem}
+.own .q{min-width:2ch;text-align:center;font-weight:700}
+.own button{border:1px solid var(--line);background:var(--paper);border-radius:9px;height:34px;min-width:34px;font-weight:700;cursor:pointer}
+.own .ed{margin-left:auto;padding:0 .7rem;font-weight:600;font-size:.85rem}
+
+.empty{grid-column:1/-1;text-align:center;padding:3rem 1rem;color:var(--muted)}
+
+/* Bouton flottant mobile */
+.fab{position:fixed;right:1rem;bottom:calc(1rem + env(safe-area-inset-bottom,0px));z-index:6;border:0;background:var(--action);color:var(--action-ink);font-weight:700;border-radius:999px;padding:.95rem 1.3rem;box-shadow:0 8px 24px rgba(39,67,201,.35);cursor:pointer}
+
+/* Fenêtre ajout / modification */
+dialog{border:0;padding:0;background:transparent;max-width:none;max-height:none;width:100%;height:100%;margin:0}
+dialog::backdrop{background:rgba(15,18,28,.55)}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:92%;overflow:auto;background:var(--card);border-radius:22px 22px 0 0;padding:1.3rem 1.2rem calc(1.2rem + env(safe-area-inset-bottom,0px));display:grid;gap:.9rem}
+@media (min-width:760px){.sheet{left:50%;top:50%;bottom:auto;transform:translate(-50%,-50%);width:520px;border-radius:22px}}
+.sheet h2{margin:0;font-family:var(--display);font-size:1.5rem;letter-spacing:-.02em}
+.drop{display:flex;align-items:center;gap:.9rem;border:1px dashed var(--line);border-radius:14px;padding:.7rem;cursor:pointer;font-weight:600}
+.drop .pv{width:72px;height:72px;border-radius:10px;background:var(--paper);display:grid;place-items:center;overflow:hidden;flex:none}
+.drop .pv img{width:100%;height:100%;object-fit:contain}
+.drop small{display:block;font-weight:400;color:var(--muted)}
+.picks{display:flex;flex-wrap:wrap;gap:.35rem}
+.picks .chip{padding:.3rem .7rem;font-size:.82rem}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+.actions{display:flex;align-items:center;gap:.5rem;margin-top:.2rem}
+.grow{flex:1}
+.config{max-width:560px;margin:4rem auto;padding:1.5rem;background:var(--card);border:1px solid var(--line);border-radius:16px}
+.config code{background:var(--paper);padding:.1rem .35rem;border-radius:6px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<dialog id="dlg" aria-labelledby="dlg-title"></dialog>
+
+<script>
+/* ============ CONFIG : colle tes infos Supabase ici ============ */
+const SUPABASE_URL = "https://yfusxuoyhfhkzgcaujqz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmdXN4dW95aGZoa3pnY2F1anF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5OTE3MzksImV4cCI6MjEwNTU2NzczOX0.jG1DEHw-X73VyyMTlPL7MOASxnarxwY6_uj6F-3PQGI";
+const ADMIN = "Fazidh";
+/* =============================================================== */
+
+const PRESETS = ["Pokémon","One Piece","Dragon Ball","Lorcana","Yu-Gi-Oh!","Magic","Autre"];
+const COLORS = {"Pokémon":"#F2B705","One Piece":"#D7263D","Dragon Ball":"#F26B1D","Lorcana":"#6C4FD1","Yu-Gi-Oh!":"#9A6A2F","Magic":"#2E7D5B","Autre":"#8A90A2"};
+
+const $ = s => document.querySelector(s);
+const app = $("#app");
+const dlg = $("#dlg");
+const eur = n => new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR"}).format(Number(n)||0);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
+const colorOf = c => COLORS[c] || `hsl(${[...String(c)].reduce((a,ch)=>a+ch.charCodeAt(0),0)%360} 50% 48%)`;
+
+const S = { session:null, me:null, products:[], q:"", cat:null, owner:null, sort:"recent", editing:null, channel:null };
+let sb;
+
+/* ---------- Démarrage ---------- */
+async function boot(){
+  if (SUPABASE_URL.includes("TON-PROJET")) {
+    app.innerHTML = `<div class="config"><h1 class="brand">Le Stock</h1>
+      <p>Il manque la config Supabase. Ouvre <code>index.html</code> et remplis <code>SUPABASE_URL</code> et <code>SUPABASE_ANON_KEY</code> (Supabase &gt; Project Settings &gt; API).</p></div>`;
+    return;
+  }
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const { data:{ session } } = await sb.auth.getSession();
+  S.session = session;
+  sb.auth.onAuthStateChange((_e, session) => {
+    const changed = session?.user?.id !== S.session?.user?.id;
+    S.session = session;
+    if (changed) route();
+  });
+  route();
+}
+
+async function route(){
+  if (!S.session) return renderLogin();
+  const { data } = await sb.from("profiles").select("*").eq("id", S.session.user.id).maybeSingle();
+  if (!data) return renderName();
+  S.me = data;
+  renderMain();
+}
+
+/* ---------- Connexion ---------- */
+function renderLogin(){
+  if (S.channel) { sb.removeChannel(S.channel); S.channel = null; }
+  app.innerHTML = `<main class="auth"><div class="auth-box">
+    <h1 class="brand">Le Stock</h1>
+    <p class="muted">Connecte-toi avec le compte que ${esc(ADMIN)} t'a créé.</p>
+    <form id="f">
+      <label>Email<input type="email" name="email" required autocomplete="username"></label>
+      <label>Mot de passe<input type="password" name="pw" required autocomplete="current-password"></label>
+      <p class="err" id="err"></p>
+      <button class="btn primary" id="go">Se connecter</button>
+    </form></div></main>`;
+  $("#f").onsubmit = async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target), btn = $("#go");
+    btn.disabled = true; btn.textContent = "Connexion…";
+    const { error } = await sb.auth.signInWithPassword({ email: fd.get("email").trim(), password: fd.get("pw") });
+    if (error) {
+      const m = (error.message || "").toLowerCase();
+      $("#err").textContent =
+        m.includes("invalid login") ? "Email ou mot de passe incorrect (ou compte inexistant)." :
+        m.includes("not confirmed") ? "Compte pas confirmé : dans Supabase, confirme l'utilisateur." :
+        m.includes("api key") || m.includes("apikey") ? "Clé Supabase invalide : vérifie SUPABASE_ANON_KEY en haut du fichier." :
+        m.includes("fetch") ? "Supabase injoignable : vérifie SUPABASE_URL en haut du fichier." :
+        "Erreur : " + error.message;
+      btn.disabled = false; btn.textContent = "Se connecter";
+    }
+  };
+}
+
+function renderName(){
+  app.innerHTML = `<main class="auth"><div class="auth-box">
+    <h1 class="brand">Bienvenue</h1>
+    <p class="muted">Ton prénom apparaîtra sur tes produits et dans les filtres.</p>
+    <form id="f">
+      <label>Prénom<input name="prenom" required maxlength="40" autocomplete="given-name"></label>
+      <p class="err" id="err"></p>
+      <button class="btn primary">Continuer</button>
+    </form></div></main>`;
+  $("#f").onsubmit = async e => {
+    e.preventDefault();
+    const prenom = new FormData(e.target).get("prenom").trim();
+    if (!prenom) return;
+    const { error } = await sb.from("profiles").insert({ id: S.session.user.id, prenom });
+    if (error) return $("#err").textContent = "Impossible d'enregistrer le prénom : " + error.message;
+    route();
+  };
+}
+
+/* ---------- Page principale ---------- */
+function renderMain(){
+  app.innerHTML = `
+  <header class="top"><div class="top-in">
+    <span class="brand">Le Stock</span>
+    <div class="who">
+      <button class="btn primary add-desk" id="add2">Ajouter un produit</button>
+      <span>${esc(S.me.prenom)}</span>
+      <button class="link" id="logout">Déconnexion</button>
+    </div>
+  </div></header>
+  <main class="wrap">
+    <section class="foil" id="stats" aria-live="polite"></section>
+    <div class="tools">
+      <input id="q" type="search" placeholder="Rechercher un produit" value="${esc(S.q)}">
+      <select id="sort" aria-label="Trier">
+        <option value="recent">Plus récents</option>
+        <option value="value">Valeur totale</option>
+        <option value="price">Prix unitaire</option>
+        <option value="name">Nom</option>
+      </select>
+    </div>
+    <div class="chips" id="cats" aria-label="Filtrer par jeu"></div>
+    <div class="chips people" id="people" aria-label="Filtrer par personne"></div>
+    <section class="grid" id="grid"></section>
+  </main>
+  <button class="fab" id="add">+ Ajouter</button>`;
+
+  $("#sort").value = S.sort;
+  $("#logout").onclick = () => sb.auth.signOut();
+  $("#add").onclick = $("#add2").onclick = () => openEditor(null);
+  $("#q").oninput = e => { S.q = e.target.value.trim().toLowerCase(); update(); };
+  $("#sort").onchange = e => { S.sort = e.target.value; update(); };
+  $("#cats").onclick = e => { const b = e.target.closest(".chip"); if (!b) return; S.cat = b.dataset.v || null; update(); };
+  $("#people").onclick = e => { const b = e.target.closest(".chip"); if (!b) return; S.owner = b.dataset.v || null; update(); };
+  $("#grid").onclick = onGridClick;
+
+  $("#stats").innerHTML = `<p class="foil-k">Chargement du stock…</p>`;
+  load();
+  if (!S.channel) {
+    let t;
+    S.channel = sb.channel("products-live")
+      .on("postgres_changes", { event:"*", schema:"public", table:"products" }, () => { clearTimeout(t); t = setTimeout(load, 400); })
+      .subscribe();
+  }
+}
+
+async function load(){
+  const { data, error } = await sb.from("products").select("*, profiles(prenom)").order("created_at", { ascending:false });
+  if (error) { $("#grid").innerHTML = `<p class="empty">Chargement impossible : ${esc(error.message)}</p>`; return; }
+  S.products = data || [];
+  update();
+}
+
+function view(){
+  let list = S.products.filter(p =>
+    (!S.cat || p.category === S.cat) &&
+    (!S.owner || p.owner_id === S.owner) &&
+    (!S.q || p.name.toLowerCase().includes(S.q)));
+  const val = p => Number(p.price) * p.quantity;
+  const sorts = {
+    recent: (a,b) => new Date(b.created_at) - new Date(a.created_at),
+    value:  (a,b) => val(b) - val(a),
+    price:  (a,b) => b.price - a.price,
+    name:   (a,b) => a.name.localeCompare(b.name, "fr")
+  };
+  return list.sort(sorts[S.sort]);
+}
+
+function update(){
+  if (!$("#grid")) return;
+  const list = view();
+  const nameOf = id => S.products.find(p => p.owner_id === id)?.profiles?.prenom || "?";
+
+  // Bandeau valeur
+  const total = list.reduce((s,p) => s + Number(p.price) * p.quantity, 0);
+  const items = list.reduce((s,p) => s + p.quantity, 0);
+  let scope = "Valeur du stock";
+  if (S.cat) scope += " " + S.cat;
+  if (S.owner) scope += " de " + nameOf(S.owner);
+  $("#stats").innerHTML = `<p class="foil-k">${esc(scope)}</p>
+    <p class="foil-v">${eur(total)}</p>
+    <p class="foil-s">${plural(items,"article")}, ${plural(list.length,"référence")}</p>`;
+
+  // Filtre jeux (tient compte du filtre personne)
+  const catBase = S.products.filter(p => !S.owner || p.owner_id === S.owner);
+  const cats = {};
+  catBase.forEach(p => cats[p.category] = (cats[p.category] || 0) + p.quantity);
+  $("#cats").innerHTML =
+    `<button class="chip" data-v="" aria-pressed="${!S.cat}">Tous les jeux</button>` +
+    Object.keys(cats).sort((a,b)=>a.localeCompare(b,"fr")).map(c =>
+      `<button class="chip" data-v="${esc(c)}" aria-pressed="${S.cat===c}"><span class="dot" style="background:${colorOf(c)}"></span>${esc(c)} <small>${cats[c]}</small></button>`).join("");
+
+  // Filtre personnes (tient compte du filtre jeu)
+  const pplBase = S.products.filter(p => !S.cat || p.category === S.cat);
+  const ppl = {};
+  pplBase.forEach(p => { ppl[p.owner_id] ??= { name: p.profiles?.prenom || "?", v: 0 }; ppl[p.owner_id].v += Number(p.price) * p.quantity; });
+  $("#people").innerHTML =
+    `<button class="chip" data-v="" aria-pressed="${!S.owner}">Tout le monde</button>` +
+    Object.entries(ppl).sort((a,b)=>b[1].v - a[1].v).map(([id,o]) =>
+      `<button class="chip" data-v="${id}" aria-pressed="${S.owner===id}">${esc(o.name)} <small>${eur(o.v)}</small></button>`).join("");
+
+  // Grille
+  if (!S.products.length) {
+    $("#grid").innerHTML = `<p class="empty">Aucun produit pour l'instant. Ajoute le premier avec le bouton « Ajouter ».</p>`;
+    return;
+  }
+  if (!list.length) {
+    $("#grid").innerHTML = `<div class="empty"><p>Rien ne correspond à ces filtres.</p><button class="btn" data-act="reset">Effacer les filtres</button></div>`;
+    return;
+  }
+  const me = S.session.user.id;
+  $("#grid").innerHTML = list.map(p => {
+    const mine = p.owner_id === me;
+    return `<article class="tile" data-id="${p.id}">
+      <div class="pic">${p.image_url ? `<img src="${esc(p.image_url)}" alt="" loading="lazy">` : `<span>Pas d'image</span>`}</div>
+      <div class="body">
+        <span class="tag"><span class="dot" style="background:${colorOf(p.category)}"></span>${esc(p.category)}</span>
+        <h3>${esc(p.name)}</h3>
+        <p class="by">par ${esc(p.profiles?.prenom || "?")}</p>
+        <div class="nums"><span>${eur(p.price)} × ${p.quantity}</span><strong>${eur(Number(p.price) * p.quantity)}</strong></div>
+        ${mine ? `<div class="own">
+          <button data-act="dec" aria-label="Retirer un">−</button>
+          <span class="q">${p.quantity}</span>
+          <button data-act="inc" aria-label="Ajouter un">+</button>
+          <button class="ed" data-act="edit">Modifier</button>
+        </div>` : ""}
+      </div></article>`;
+  }).join("");
+}
+
+async function onGridClick(e){
+  const b = e.target.closest("[data-act]");
+  if (!b) return;
+  if (b.dataset.act === "reset") { S.q = ""; S.cat = null; S.owner = null; $("#q").value = ""; return update(); }
+  const id = Number(b.closest(".tile").dataset.id);
+  const p = S.products.find(x => x.id === id);
+  if (!p) return;
+  if (b.dataset.act === "edit") return openEditor(p);
+  const next = Math.max(0, p.quantity + (b.dataset.act === "inc" ? 1 : -1));
+  if (next === p.quantity) return;
+  const prev = p.quantity;
+  p.quantity = next; update();
+  const { error } = await sb.from("products").update({ quantity: next }).eq("id", id);
+  if (error) { p.quantity = prev; update(); alert("Quantité non enregistrée : " + error.message); }
+}
+
+/* ---------- Ajout / modification ---------- */
+function openEditor(p){
+  S.editing = p;
+  let file = null;
+  dlg.innerHTML = `<form class="sheet" id="pf">
+    <h2 id="dlg-title">${p ? "Modifier le produit" : "Ajouter un produit"}</h2>
+    <label class="drop">
+      <span class="pv" id="pv">${p?.image_url ? `<img src="${esc(p.image_url)}" alt="">` : "📷"}</span>
+      <span>Choisir une photo<small>Depuis la galerie ou l'appareil photo</small></span>
+      <input type="file" accept="image/*" id="file" hidden>
+    </label>
+    <label>Ou lien d'une image<input name="image_url" type="url" placeholder="https://…" value="${esc(p?.image_url || "")}"></label>
+    <label>Nom du produit<textarea name="name" rows="2" required placeholder="One Piece Le Jeu de Cartes - OP17 - Booster Double Pack">${esc(p?.name || "")}</textarea></label>
+    <label>Jeu / catégorie<input name="category" id="cat" required list="catlist" value="${esc(p?.category || "")}" placeholder="Pokémon, One Piece…"></label>
+    <datalist id="catlist">${[...new Set([...PRESETS, ...S.products.map(x=>x.category)])].map(c=>`<option value="${esc(c)}">`).join("")}</datalist>
+    <div class="picks">${PRESETS.map(c=>`<button type="button" class="chip" data-c="${esc(c)}"><span class="dot" style="background:${colorOf(c)}"></span>${esc(c)}</button>`).join("")}</div>
+    <div class="row">
+      <label>Prix unitaire (€)<input name="price" inputmode="decimal" required placeholder="11,99" value="${p ? String(p.price).replace(".", ",") : ""}"></label>
+      <label>Quantité<input name="quantity" type="number" inputmode="numeric" min="0" step="1" required value="${p?.quantity ?? 1}"></label>
+    </div>
+    <p class="err" id="perr"></p>
+    <div class="actions">
+      ${p ? `<button type="button" class="btn danger" id="del">Supprimer</button>` : ""}
+      <span class="grow"></span>
+      <button type="button" class="btn" id="cancel">Annuler</button>
+      <button class="btn primary" id="save">${p ? "Enregistrer" : "Ajouter"}</button>
+    </div>
+  </form>`;
+  dlg.showModal();
+
+  const f = $("#pf");
+  $("#cancel").onclick = () => dlg.close();
+  dlg.onclick = e => { if (e.target === dlg) dlg.close(); };
+  f.querySelector(".picks").onclick = e => { const b = e.target.closest("[data-c]"); if (b) $("#cat").value = b.dataset.c; };
+  $("#file").onchange = e => {
+    file = e.target.files[0] || null;
+    if (file) $("#pv").innerHTML = `<img src="${URL.createObjectURL(file)}" alt="">`;
+  };
+  if (p) $("#del").onclick = () => removeProduct(p);
+
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const fd = new FormData(f), err = $("#perr"), save = $("#save");
+    const price = parseFloat(String(fd.get("price")).replace(/\s/g,"").replace(",", "."));
+    const quantity = parseInt(fd.get("quantity"), 10);
+    const name = fd.get("name").trim(), category = fd.get("category").trim();
+    if (!name) return err.textContent = "Donne un nom au produit.";
+    if (!category) return err.textContent = "Choisis une catégorie.";
+    if (isNaN(price) || price < 0) return err.textContent = "Le prix doit être un nombre, par exemple 11,99.";
+    if (isNaN(quantity) || quantity < 0) return err.textContent = "La quantité doit être un nombre entier.";
+
+    save.disabled = true; save.textContent = "Enregistrement…";
+    let image_url = fd.get("image_url").trim() || null;
+    try {
+      if (file) image_url = await uploadImage(file);
+      const row = { name, category, price: Math.round(price * 100) / 100, quantity, image_url };
+      const { error } = p
+        ? await sb.from("products").update(row).eq("id", p.id)
+        : await sb.from("products").insert(row);
+      if (error) throw error;
+      if (p && file && p.image_url) deleteImage(p.image_url);
+      dlg.close();
+      load();
+    } catch (ex) {
+      err.textContent = "Échec de l'enregistrement : " + (ex.message || ex);
+      save.disabled = false; save.textContent = p ? "Enregistrer" : "Ajouter";
+    }
+  };
+}
+
+async function removeProduct(p){
+  if (!confirm(`Supprimer « ${p.name} » ?`)) return;
+  const { error } = await sb.from("products").delete().eq("id", p.id);
+  if (error) return $("#perr").textContent = "Suppression impossible : " + error.message;
+  if (p.image_url) deleteImage(p.image_url);
+  dlg.close();
+  load();
+}
+
+/* ---------- Images : compression puis envoi ---------- */
+async function compress(file){
+  try {
+    const bmp = await createImageBitmap(file);
+    const max = 900, s = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise(r => c.toBlob(b => r(b || file), "image/jpeg", 0.82));
+  } catch { return file; }
+}
+
+async function uploadImage(file){
+  const blob = await compress(file);
+  const ext = blob.type === "image/jpeg" ? "jpg" : (file.name.split(".").pop() || "img");
+  const path = `${S.session.user.id}/${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
+  const { error } = await sb.storage.from("images").upload(path, blob, { contentType: blob.type || file.type, upsert: false });
+  if (error) throw error;
+  return sb.storage.from("images").getPublicUrl(path).data.publicUrl;
+}
+
+function deleteImage(url){
+  const marker = "/storage/v1/object/public/images/";
+  const i = url.indexOf(marker);
+  if (i === -1) return;
+  sb.storage.from("images").remove([decodeURIComponent(url.slice(i + marker.length))]);
+}
+
+document.addEventListener("visibilitychange", () => { if (!document.hidden && S.me && $("#grid")) load(); });
+boot();
+</script>
+</body>
+</html>
