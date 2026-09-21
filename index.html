@@ -135,13 +135,19 @@ dialog::backdrop{background:rgba(15,18,28,.55)}
 .sg-pic img{width:100%;height:100%;object-fit:contain}
 .sg strong{display:block;font-weight:600;font-size:.92rem;line-height:1.3}
 .sg small{color:var(--muted)}
-.cl{display:grid;gap:.6rem}
-.cl-row{display:flex;gap:.7rem;align-items:flex-start;padding:.6rem;border:1px solid var(--line);border-radius:12px}
-.cl-main{flex:1;min-width:0;display:grid;gap:.45rem}
-.cl-main strong{font-size:.92rem;font-weight:600;line-height:1.3}
-.cl-tools{display:flex;gap:.4rem}
-.cl-tools .btn{padding:.5rem .8rem;text-decoration:none;color:inherit;font-size:.85rem;flex:none}
-.cl-tools input{padding:.5rem .6rem;min-width:0}
+.sub{margin:.8rem 0 0;font-family:var(--display);font-size:1.2rem;letter-spacing:-.01em}
+.gain{margin:0;font-weight:600;min-height:1.4em}
+.pos{color:#1E8A4C}
+.neg{color:var(--danger)}
+@media (prefers-color-scheme:dark){.pos{color:#4CD68A}}
+.tot{margin:0 0 .5rem}
+.sl{display:grid;gap:.4rem}
+.sl-row{display:flex;align-items:center;gap:.6rem;padding:.55rem .7rem;border:1px solid var(--line);border-radius:10px}
+.sl-row>div{flex:1;min-width:0}
+.sl-row strong{display:block;font-size:.9rem;font-weight:600;line-height:1.3}
+.sl-row small{color:var(--muted)}
+.sl-row>span{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.top .btn{padding:.5rem .9rem}
 .config{max-width:560px;margin:4rem auto;padding:1.5rem;background:var(--card);border:1px solid var(--line);border-radius:16px}
 .config code{background:var(--paper);padding:.1rem .35rem;border-radius:6px}
 </style>
@@ -254,7 +260,7 @@ function renderMain(){
     <span class="brand">Le Stock</span>
     <div class="who">
       <button class="btn primary add-desk" id="add2">Ajouter un produit</button>
-      <button class="link" id="catbtn">Images</button>
+      <button class="btn" id="sell">Vendu</button>
       <span>${esc(S.me.prenom)}</span>
       <button class="link" id="logout">Déconnexion</button>
     </div>
@@ -278,7 +284,7 @@ function renderMain(){
 
   $("#sort").value = S.sort;
   $("#logout").onclick = () => sb.auth.signOut();
-  $("#catbtn").onclick = openCatalog;
+  $("#sell").onclick = () => openSell();
   $("#add").onclick = $("#add2").onclick = () => openEditor(null);
   $("#q").oninput = e => { S.q = e.target.value.trim().toLowerCase(); update(); };
   $("#sort").onchange = e => { S.sort = e.target.value; update(); };
@@ -513,39 +519,96 @@ async function removeProduct(p){
   load();
 }
 
-/* ---------- Images du catalogue (remplissage rapide) ---------- */
-function openCatalog(){
-  const items = [...S.catalog].sort((a,b) => (!!a.image_url - !!b.image_url) || a.name.localeCompare(b.name, "fr"));
-  const missing = items.filter(c => !c.image_url).length;
-  dlg.innerHTML = `<div class="sheet">
-    <h2 id="dlg-title">Images du catalogue</h2>
-    <p class="muted" style="margin:0">${plural(missing, "produit")} sans image. Clique sur « Chercher », fais un appui long (ou clic droit) sur l'image, « Copier l'adresse de l'image », puis colle-la dans la case. C'est enregistré tout de suite.</p>
-    <div class="cl">${items.map(c => `<div class="cl-row" data-id="${c.id}">
-      <span class="sg-pic">${c.image_url ? `<img src="${esc(c.image_url)}" alt="">` : "📦"}</span>
-      <div class="cl-main">
-        <strong>${esc(c.name)}</strong>
-        <div class="cl-tools">
-          <a class="btn" target="_blank" rel="noopener" href="https://www.google.com/search?tbm=isch&q=${encodeURIComponent(c.name + " " + c.category)}">Chercher</a>
-          <input type="url" placeholder="Coller le lien de l'image" value="${esc(c.image_url || "")}">
-        </div>
-      </div></div>`).join("")}</div>
-    <div class="actions"><span class="grow"></span><button type="button" class="btn primary" id="close">Terminé</button></div>
-  </div>`;
-  dlg.showModal();
-  const done = () => { dlg.close(); load(); };
-  $("#close").onclick = done;
-  dlg.onclick = e => { if (e.target === dlg) done(); };
-  dlg.querySelectorAll(".cl-row input").forEach(inp => {
-    inp.addEventListener("paste", () => setTimeout(() => inp.dispatchEvent(new Event("change")), 0));
-    inp.onchange = async () => {
-      const row = inp.closest(".cl-row"), id = Number(row.dataset.id), url = inp.value.trim() || null;
-      if (url && !/^(https?:\/\/|data:image\/)/i.test(url)) { alert("Ce n'est pas un lien d'image valide."); return; }
-      const { error } = await sb.from("catalog").update({ image_url: url }).eq("id", id);
-      if (error) { alert("Image non enregistrée : " + error.message); return; }
-      const c = S.catalog.find(x => x.id === id); if (c) c.image_url = url;
-      row.querySelector(".sg-pic").innerHTML = url ? `<img src="${esc(url)}" alt="">` : "📦";
+/* ---------- Ventes ---------- */
+const parsePrice = v => parseFloat(String(v ?? "").replace(/\s/g, "").replace(",", "."));
+const signed = n => `${n > 0 ? "+" : ""}${eur(n)}`;
+
+function openSell(){
+  const me = S.session.user.id;
+  const mine = S.products.filter(p => p.owner_id === me && p.quantity > 0).sort((a,b) => a.name.localeCompare(b.name, "fr"));
+  dlg.innerHTML = `<form class="sheet" id="sf">
+    <h2 id="dlg-title">Enregistrer une vente</h2>
+    ${mine.length ? `
+      <label>Produit vendu<select name="pid" required>${mine.map(p => `<option value="${p.id}">${esc(p.name)} (${p.quantity} en stock)</option>`).join("")}</select></label>
+      <div class="row">
+        <label>Quantité<input name="q" type="number" inputmode="numeric" min="1" step="1" value="1" required></label>
+        <label>Prix de vente unitaire (€)<input name="sp" inputmode="decimal" required placeholder="0,00"></label>
+      </div>
+      <p class="gain" id="gain"></p>
+      <p class="err" id="serr"></p>
+      <div class="actions"><span class="grow"></span>
+        <button type="button" class="btn" id="cancel">Fermer</button>
+        <button class="btn primary" id="ssave">Enregistrer la vente</button>
+      </div>`
+    : `<p class="muted" style="margin:0">Tu n'as aucun produit en stock à vendre.</p>
+      <div class="actions"><span class="grow"></span><button type="button" class="btn" id="cancel">Fermer</button></div>`}
+    <h3 class="sub">Mes ventes</h3>
+    <div id="sales"><p class="muted">Chargement…</p></div>
+  </form>`;
+  if (!dlg.open) dlg.showModal();
+  $("#cancel").onclick = () => dlg.close();
+  dlg.onclick = e => { if (e.target === dlg) dlg.close(); };
+
+  const f = $("#sf"), el = f.elements;
+  if (mine.length) {
+    const cur = () => mine.find(p => String(p.id) === el.pid.value);
+    const preview = () => {
+      const p = cur(), q = parseInt(el.q.value, 10), sp = parsePrice(el.sp.value);
+      el.q.max = p.quantity;
+      if (!p || isNaN(q) || isNaN(sp)) { $("#gain").textContent = ""; return; }
+      const g = (sp - Number(p.price)) * q;
+      $("#gain").innerHTML = `Bénéfice : <span class="${g >= 0 ? "pos" : "neg"}">${signed(g)}</span> <span class="muted">(acheté ${eur(p.price)} pièce)</span>`;
     };
-  });
+    el.pid.onchange = el.q.oninput = el.sp.oninput = preview;
+    preview();
+
+    f.onsubmit = async e => {
+      e.preventDefault();
+      const p = cur(), q = parseInt(el.q.value, 10), sp = parsePrice(el.sp.value), err = $("#serr"), btn = $("#ssave");
+      if (isNaN(q) || q < 1) return err.textContent = "Quantité invalide.";
+      if (q > p.quantity) return err.textContent = `Tu n'en as que ${p.quantity} en stock.`;
+      if (isNaN(sp) || sp < 0) return err.textContent = "Prix de vente invalide, par exemple 45,00.";
+      btn.disabled = true; btn.textContent = "Enregistrement…";
+      const { error } = await sb.from("sales").insert({
+        product_id: p.id, name: p.name, category: p.category, quantity: q,
+        buy_price: Number(p.price), sell_price: Math.round(sp * 100) / 100
+      });
+      if (error) { err.textContent = "Vente non enregistrée : " + error.message; btn.disabled = false; btn.textContent = "Enregistrer la vente"; return; }
+      await sb.from("products").update({ quantity: p.quantity - q }).eq("id", p.id);
+      await load();
+      openSell();
+    };
+  }
+  renderSales();
+}
+
+async function renderSales(){
+  const box = $("#sales"); if (!box) return;
+  const { data, error } = await sb.from("sales").select("*").eq("owner_id", S.session.user.id).order("sold_at", { ascending:false }).limit(500);
+  if (error) { box.innerHTML = `<p class="err">Ventes indisponibles : ${esc(error.message)}</p>`; return; }
+  if (!data.length) { box.innerHTML = `<p class="muted" style="margin:0">Aucune vente pour l'instant.</p>`; return; }
+  const ca = data.reduce((s,x) => s + x.quantity * Number(x.sell_price), 0);
+  const gain = data.reduce((s,x) => s + x.quantity * (Number(x.sell_price) - Number(x.buy_price)), 0);
+  box.innerHTML = `<p class="tot">Total vendu ${eur(ca)}, bénéfice <strong class="${gain >= 0 ? "pos" : "neg"}">${signed(gain)}</strong></p>
+    <div class="sl">${data.map(x => {
+      const g = x.quantity * (Number(x.sell_price) - Number(x.buy_price));
+      return `<div class="sl-row">
+        <div><strong>${esc(x.name)}</strong><small>${x.quantity} × ${eur(x.sell_price)}, le ${new Date(x.sold_at).toLocaleDateString("fr-FR")}</small></div>
+        <span class="${g >= 0 ? "pos" : "neg"}">${signed(g)}</span>
+        <button type="button" class="link" data-undo="${x.id}">Annuler</button>
+      </div>`;
+    }).join("")}</div>`;
+  box.onclick = async e => {
+    const b = e.target.closest("[data-undo]"); if (!b) return;
+    const x = data.find(s => String(s.id) === b.dataset.undo); if (!x) return;
+    if (!confirm(`Annuler la vente de ${x.quantity} × ${x.name} ? Le stock sera remis.`)) return;
+    const { error } = await sb.from("sales").delete().eq("id", x.id);
+    if (error) return alert("Annulation impossible : " + error.message);
+    const p = S.products.find(p => p.id === x.product_id);
+    if (p) await sb.from("products").update({ quantity: p.quantity + x.quantity }).eq("id", p.id);
+    await load();
+    openSell();
+  };
 }
 
 /* ---------- Images : compression puis envoi ---------- */
