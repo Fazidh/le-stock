@@ -442,7 +442,7 @@ function openEditor(p){
     if (!hits.length) { sugg.hidden = true; return; }
     sugg.innerHTML = hits.map(c => `<button type="button" class="sg" data-id="${c.id}">
       <span class="sg-pic">${c.image_url ? `<img src="${esc(c.image_url)}" alt="">` : "📦"}</span>
-      <span><strong>${esc(c.name)}</strong><small>${esc(c.category)}${c.price != null ? ", " + eur(c.price) : ""}</small></span>
+      <span><strong>${esc(c.name)}</strong><small>${esc(c.category)}</small></span>
     </button>`).join("");
     sugg.hidden = false;
   };
@@ -453,10 +453,9 @@ function openEditor(p){
     const c = S.catalog.find(x => String(x.id) === b.dataset.id); if (!c) return;
     nameIn.value = c.name;
     el.category.value = c.category;
-    if (c.price != null) el.price.value = Number(c.price).toFixed(2).replace(".", ",");
     if (c.image_url) { el.image_url.value = c.image_url; file = null; $("#pv").innerHTML = `<img src="${esc(c.image_url)}" alt="">`; }
     sugg.hidden = true;
-    (el.price.value ? el.quantity : el.price).focus();
+    el.price.focus();
   };
   f.querySelector(".picks").onclick = e => { const b = e.target.closest("[data-c]"); if (b) $("#cat").value = b.dataset.c; };
   $("#file").onchange = e => {
@@ -532,8 +531,12 @@ async function uploadImage(file){
 async function syncCatalog(row){
   try {
     const c = S.catalog.find(x => norm(x.name) === norm(row.name));
-    if (!c) await sb.from("catalog").insert({ name: row.name, category: row.category, price: row.price, image_url: row.image_url });
-    else if (!c.image_url && row.image_url) await sb.from("catalog").update({ image_url: row.image_url }).eq("id", c.id);
+    if (!c) await sb.from("catalog").insert({ name: row.name, category: row.category, image_url: row.image_url });
+    else {
+      const patch = {};
+      if (!c.image_url && row.image_url) patch.image_url = row.image_url;
+      if (Object.keys(patch).length) await sb.from("catalog").update(patch).eq("id", c.id);
+    }
   } catch {}
 }
 
