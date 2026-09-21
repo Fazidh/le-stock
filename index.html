@@ -453,7 +453,7 @@ function openEditor(p){
     const c = S.catalog.find(x => String(x.id) === b.dataset.id); if (!c) return;
     nameIn.value = c.name;
     el.category.value = c.category;
-    if (c.price != null && !el.price.value) el.price.value = String(c.price).replace(".", ",");
+    if (c.price != null) el.price.value = Number(c.price).toFixed(2).replace(".", ",");
     if (c.image_url) { el.image_url.value = c.image_url; file = null; $("#pv").innerHTML = `<img src="${esc(c.image_url)}" alt="">`; }
     sugg.hidden = true;
     (el.price.value ? el.quantity : el.price).focus();
